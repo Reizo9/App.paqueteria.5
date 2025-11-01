@@ -1,4 +1,4 @@
-/* app.js final: +Foto Guardia +Comentarios +Opcion Notificar +Historial Cards +COMPRESION + TOAST + RESPALDO + ZXING / BarcodeDetector */
+/* app.js final: +Foto Guardia +Comentarios +Opcion Notificar +Historial Cards +COMPRESION + TOAST + RESPALDO + ZXING / BarcodeDetector + QR (Modo "Scan-All") */
 (async function(){
   
   // --- INICIO SETUP DE jspdf ---
@@ -13,7 +13,7 @@
   async function hashText(text){
     const enc = new TextEncoder();
     const data = enc.encode(text);
-    const hash = await crypto.subtle.digest('SHA-256', data);
+    const hash = await crypto.subtle.digest('SHA-26', data);
     const hex = [...new Uint8Array(hash)].map(b=>b.toString(16).padStart(2,'0')).join('');
     return hex;
   }
@@ -714,7 +714,7 @@
       
       stopScanner();
       
-      showToast(`Guía escaneada`, 'success');
+      showToast(`Código escaneado`, 'success');
       
       // Disparar evento input para que se actualicen las sugerencias
       if (guiaEl) {
@@ -805,9 +805,9 @@
           if (hasBarcodeDetector) {
             // --- ESTRATEGIA A: Usar API Nativa (Android/Chrome) ---
             console.log("Usando API nativa: BarcodeDetector");
-            barcodeDetector = new window.BarcodeDetector({
-              formats: ['code_128', 'code_39', 'ean_13']
-            });
+            
+            // --- CAMBIO: No especificar formatos, buscar todos ---
+            barcodeDetector = new window.BarcodeDetector();
 
             // Loop de escaneo
             const scanFrame = async () => {
@@ -832,8 +832,11 @@
           } else if (hasZxing) {
             // --- ESTRATEGIA B: Usar ZXing (Fallback para iPhone/Safari) ---
             console.log("Usando fallback: ZXing-js");
+            
+            // --- CAMBIO: No pasar 'hints', buscar todos los formatos ---
             zxingCodeReader = new ZXing.BrowserMultiFormatReader();
-            // ZXing maneja el stream internamente, pero ya se lo dimos
+            
+            // ZXing maneja el stream internamente
             zxingCodeReader.decodeFromStream(cameraStream, scannerVideo, (result, err) => {
               if (result) {
                 onCodeDetected(result.getText());
@@ -961,7 +964,7 @@
         const u = e.target.closest('.row').querySelector('.info strong').textContent;
         itemToDelete = { type: 'usuario', id: id };
         deleteConfirmMsg.textContent = `¿Estás seguro de eliminar al usuario ${u}? Esta acción no se puede deshacer.`;
-        deleteConfirmModal.classList.remove('hidden');
+        deleteConfirmModal.classList.add('hidden');
       }
     });
     refreshUsersBtn.addEventListener('click', refreshUsuarios);
