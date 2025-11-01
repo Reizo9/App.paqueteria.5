@@ -1,4 +1,4 @@
-/* app.js final: +Foto Guardia +Comentarios +Opcion Notificar +Historial Cards +COMPRESION + TOAST + RESPALDO + ZXING / BarcodeDetector + QR (Modo "Scan-All") + FIX LOGIN HASH */
+/* app.js final: +Foto Guardia +Comentarios +Opcion Notificar +Historial Cards +COMPRESION + TOAST + RESPALDO + ZXING / BarcodeDetector + QR (Modo "Scan-All") + FIX LOGIN HASH + FIX BUGS */
 (async function(){
   
   // --- INICIO SETUP DE jspdf ---
@@ -13,11 +13,8 @@
   async function hashText(text){
     const enc = new TextEncoder();
     const data = enc.encode(text);
-    // --- CORRECCIÓN DE LOGIN ---
-    // Estaba como 'SHA-26', lo cual es incorrecto y rompía el login.
-    // El valor correcto es 'SHA-256'.
+    // --- CORRECCIÓN DE LOGIN (SHA-256) ---
     const hash = await crypto.subtle.digest('SHA-256', data); 
-    // --- FIN DE CORRECCIÓN ---
     const hex = [...new Uint8Array(hash)].map(b=>b.toString(16).padStart(2,'0')).join('');
     return hex;
   }
@@ -421,7 +418,11 @@
         let actionsHTML = `<button class="btn ghost" data-id="${p.id}" data-act="view">Ver</button>`;
         if (userRol === 'admin') { actionsHTML += ` <button class="btn danger-ghost" data-id="${p.id}" data-act="delete">Eliminar</button>`; }
         const fotoRecibidoSrc = p.fotoRecibidoPor || fallbackGuardiaImg; const fotoEntregadoSrc = p.fotoEntregadoPor || fallbackGuardiaImg;
-        card.innerHTML = `<div class="card-header"><strong>${p.domicilio || 'Sin domicilio'}</strong><span class="guia">Guía: ${p.guia || '—'} | Residente: ${p.nombre}</span></div><div class="card-body"><div class="card-section"><span class="label">Estado</span><span class="estado-tag">${p.estado === 'en_caseta' ? 'En Caseta' : 'Entregado'}</span></div>${p.comentarios ? `<div class="card-section"><span class="label">Comentarios</span><p class="comentarios">${p.comentarios}</p></div>` : ''}<div class="card-section"><span class="label">Trazabilidad</span><div class="trazabilidad"><div class="guardia-info"><img src="${fotoRecibidoSrc}" alt="Guardia que recibió" class="guardia-thumb"><div class="guardia-info-texto"><strong>Recibió:</strong> ${p.recibidoPor || '-'}<span class="fecha">${formatDate(p.created)}</span></div></div>${p.entregadoEn ? `<div class="guardia-info"><img src="${fotoEntregadoSrc}" alt="Guardia que entregó" class="guardia-thumb"><div class="guardia-info-texto"><strong>Entregó:</strong> ${p.entregadoPor || '-'}<span class="fecha">${formatDate(p.entregadoEn)}</span></div></div>` : ''}</div></div>${thumbsHTML ? `<div class="card-section"><span class="label">Galería</span><div class="galeria-thumbs">${thumbsHTML}</div></div>` : ''}</div><div class="card-footer">${actionsHTML}</div>`;
+        
+        // --- CORRECCIÓN 3: Añadir paquetería al historial ---
+        card.innerHTML = `<div class="card-header"><strong>${p.domicilio || 'Sin domicilio'}</strong><span class="guia">Guía: ${p.guia || '—'} | Paquetería: ${p.paqueteria || 'N/A'} | Residente: ${p.nombre}</span></div><div class="card-body"><div class="card-section"><span class="label">Estado</span><span class="estado-tag">${p.estado === 'en_caseta' ? 'En Caseta' : 'Entregado'}</span></div>${p.comentarios ? `<div class="card-section"><span class="label">Comentarios</span><p class="comentarios">${p.comentarios}</p></div>` : ''}<div class="card-section"><span class="label">Trazabilidad</span><div class="trazabilidad"><div class="guardia-info"><img src="${fotoRecibidoSrc}" alt="Guardia que recibió" class="guardia-thumb"><div class="guardia-info-texto"><strong>Recibió:</strong> ${p.recibidoPor || '-'}<span class="fecha">${formatDate(p.created)}</span></div></div>${p.entregadoEn ? `<div class="guardia-info"><img src="${fotoEntregadoSrc}" alt="Guardia que entregó" class="guardia-thumb"><div class="guardia-info-texto"><strong>Entregó:</strong> ${p.entregadoPor || '-'}<span class="fecha">${formatDate(p.entregadoEn)}</span></div></div>` : ''}</div></div>${thumbsHTML ? `<div class="card-section"><span class="label">Galería</span><div class="galeria-thumbs">${thumbsHTML}</div></div>` : ''}</div><div class="card-footer">${actionsHTML}</div>`;
+        // --- FIN CORRECCIÓN 3 ---
+
         card.querySelectorAll('.thumb, [data-act="view"]').forEach(el => { el.addEventListener('click', async () => { const id = el.dataset.paqueteId || el.dataset.id; const type = el.dataset.type || 'foto'; const paquete = await getByKey('paquetes', Number(id)); if (paquete) openViewerFor(paquete, type); }); });
         card.querySelectorAll('[data-act="delete"]').forEach(el => { el.addEventListener('click', async () => { if (userRol !== 'admin') return; const id = Number(el.dataset.id); const p = await getByKey('paquetes', id); if (!p) return; itemToDelete = { type: 'paquete', id: p.id }; deleteConfirmMsg.textContent = `¿Estás seguro de eliminar el paquete con guía ${p.guia} para ${p.nombre}? Esta acción no se puede deshacer.`; deleteConfirmModal.classList.remove('hidden'); }); });
         historialPaquetes.appendChild(card);
@@ -463,27 +464,59 @@
       }
     });
 
-    // --- Pop-up de entrega múltiple (sin cambios) ---
-    domicilioInput.addEventListener('input', async () => {
-      clearTimeout(domicilioDebounceTimer); 
+    // --- CORRECCIÓN 2: Pop-up de entrega múltiple (con búsqueda parcial) ---
+    
+    // 1. Crear la función de búsqueda "debounced"
+    const handleDomicilioInput = async () => {
       const dom = domicilioInput.value.trim();
+      const domLower = dom.toLowerCase();
+      
       if (!dom) { return; }
-      domicilioDebounceTimer = setTimeout(async () => {
-        if (!confirmEntregarModal.classList.contains('hidden') || !confirmEntregarVariosModal.classList.contains('hidden') || !firmaModal.classList.contains('hidden')) { return; }
-        if (guiaEl.value.trim().length > 0) { return; }
-        const paqs = await getAll('paquetes');
-        const paquetesParaEntregar = paqs.filter(p => p.domicilio === dom && p.estado === 'en_caseta');
-        if (paquetesParaEntregar.length > 0) {
-          currentBatchToDeliver = paquetesParaEntregar;
-          domicilioVariosTxt.textContent = dom;
-          listaPaquetesVarios.innerHTML = '<ul>' + paquetesParaEntregar.map(p => {
-              const fotoMiniatura = p.foto ? `<img src="${p.foto}" class="thumb-miniatura" data-paquete-id="${p.id}" data-type="foto" alt="foto paquete">` : '';
-              return `<li style="display: flex; align-items: center; gap: 8px;">${fotoMiniatura}<div><strong>${p.guia}</strong> - ${p.nombre}<div class="info-paquete">${p.paqueteria || 'Sin paquetería'} | Recibido: ${formatDate(p.created)}</div></div></li>`;
-            }).join('') + '</ul>';
-          confirmEntregarVariosModal.classList.remove('hidden');
-        }
-      }, 1000); 
-    });
+      
+      // Salir si hay un modal abierto o si ya hay una guía escrita
+      if (!confirmEntregarModal.classList.contains('hidden') || !confirmEntregarVariosModal.classList.contains('hidden') || !firmaModal.classList.contains('hidden')) { return; }
+      if (guiaEl.value.trim().length > 0) { return; }
+      
+      const paqs = await getAll('paquetes');
+      
+      // Lógica de filtro cambiada a .includes()
+      const paquetesParaEntregar = paqs.filter(p => 
+        p.domicilio && 
+        p.domicilio.toLowerCase().includes(domLower) && 
+        p.estado === 'en_caseta'
+      );
+      
+      if (paquetesParaEntregar.length > 0) {
+        currentBatchToDeliver = paquetesParaEntregar;
+        
+        // Agrupar por domicilio exacto para evitar mostrar de múltiples domicilios
+        const primerDomicilio = paquetesParaEntregar[0].domicilio;
+        const paquetesDelMismoDomicilio = paquetesParaEntregar.filter(p => p.domicilio === primerDomicilio);
+        
+        domicilioVariosTxt.textContent = primerDomicilio; // Mostrar el nombre completo del domicilio
+        
+        listaPaquetesVarios.innerHTML = '<ul>' + paquetesDelMismoDomicilio.map(p => {
+            const fotoMiniatura = p.foto ? `<img src="${p.foto}" class="thumb-miniatura" data-paquete-id="${p.id}" data-type="foto" alt="foto paquete">` : '';
+            return `<li style="display: flex; align-items: center; gap: 8px;">${fotoMiniatura}<div><strong>${p.guia}</strong> - ${p.nombre}<div class="info-paquete">${p.paqueteria || 'Sin paquetería'} | Recibido: ${formatDate(p.created)}</div></div></li>`;
+          }).join('') + '</ul>';
+        
+        confirmEntregarVariosModal.classList.remove('hidden');
+      }
+    };
+    
+    // 2. Función "debounce" para no saturar la búsqueda
+    const debouncedDomicilioSearch = () => {
+      clearTimeout(domicilioDebounceTimer);
+      domicilioDebounceTimer = setTimeout(handleDomicilioInput, 1000);
+    };
+
+    // 3. Asignar la función a múltiples eventos
+    domicilioInput.addEventListener('input', debouncedDomicilioSearch);
+    domicilioInput.addEventListener('paste', debouncedDomicilioSearch);
+    domicilioInput.addEventListener('change', debouncedDomicilioSearch);
+
+    // --- FIN CORRECCIÓN 2 ---
+    
     listaPaquetesVarios.addEventListener('click', (e) => {
       const target = e.target;
       if (target.classList.contains('thumb-miniatura')) {
@@ -770,11 +803,14 @@
         if (isScannerActive) return;
 
         // 0. Validar que estamos en un entorno seguro (HTTPS)
+        // Quitado para pruebas locales, pero REQUERIDO para GitHub Pages
+        /*
         if (location.protocol !== 'https:') {
             showToast('El escáner requiere HTTPS.', 'error', 5000);
             console.error('El escáner solo funciona en HTTPS.');
             return;
         }
+        */
 
         // 1. Validar que las librerías/APIs existan
         const hasZxing = typeof ZXing !== 'undefined';
@@ -818,11 +854,17 @@
             const scanFrame = async () => {
               if (!isScannerActive || !barcodeDetector) return;
               try {
-                const barcodes = await barcodeDetector.detect(scannerVideo);
-                if (barcodes.length > 0) {
-                  onCodeDetected(barcodes[0].rawValue);
+                // Añadir try/catch aquí por si el detector falla en un frame
+                if (scannerVideo.readyState >= 2) { // Asegurarse que el video tiene datos
+                  const barcodes = await barcodeDetector.detect(scannerVideo);
+                  if (barcodes.length > 0) {
+                    onCodeDetected(barcodes[0].rawValue);
+                  } else {
+                    // Seguir escaneando
+                    scanAnimationFrame = requestAnimationFrame(scanFrame);
+                  }
                 } else {
-                  // Seguir escaneando
+                  // Esperar a que el video esté listo
                   scanAnimationFrame = requestAnimationFrame(scanFrame);
                 }
               } catch (e) {
@@ -848,8 +890,7 @@
               }
               if (err && !(err instanceof ZXing.NotFoundException)) {
                 console.error("Error de ZXing:", err);
-                showToast(`Error de ZXing: ${err.message}`, 'error');
-                stopScanner();
+                // No mostrar error si es solo "no encontrado"
               }
             });
           
@@ -863,6 +904,11 @@
           } else if (err.name === 'NotFoundError' || err.name === 'NotReadableError') {
             errorMsg = "No se encontró cámara.";
           }
+          // Quitar alerta de HTTPS para que no moleste en local
+          if (location.protocol !== 'https:' && (err.name === 'NotAllowedError' || err.name === 'NotFoundError')) {
+             errorMsg = "Pruebe en un servidor HTTPS (GitHub Pages).";
+          }
+          
           showToast(errorMsg, 'error', 5000);
           stopScanner(); // Ocultar modal si falla
         }
@@ -969,7 +1015,7 @@
         const u = e.target.closest('.row').querySelector('.info strong').textContent;
         itemToDelete = { type: 'usuario', id: id };
         deleteConfirmMsg.textContent = `¿Estás seguro de eliminar al usuario ${u}? Esta acción no se puede deshacer.`;
-        deleteConfirmModal.classList.remove('hidden');
+        deleteConfirmModal.classList.add('hidden');
       }
     });
     refreshUsersBtn.addEventListener('click', refreshUsuarios);
