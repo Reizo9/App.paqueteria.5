@@ -252,8 +252,9 @@ textarea{resize:vertical}
 }
 .modal.modal-scrollable .modal-content {
   max-height: calc(100vh - 40px); /* Altura de la pantalla menos el padding */
-  overflow-y: auto;
-  /* Aumentar max-width para aviso de privacidad */
+  /* --- CORRECCIÓN 1: Quitar overflow-y. El overflow debe estar en .modal-body (definido en main.html) --- */
+  /* overflow-y: auto; */ 
+  /* --- FIN CORRECIÓN 1 --- */
   max-width: 600px; 
 }
 
@@ -355,6 +356,8 @@ textarea{resize:vertical}
 .historial-card .card-header .guia {
   font-size: 13px;
   color: var(--muted);
+  /* --- CORRECCIÓN 3b: Permitir que el texto se ajuste --- */
+  line-height: 1.4;
 }
 .historial-card .card-body {
   padding: 14px;
@@ -828,4 +831,7 @@ textarea{resize:vertical}
   margin-bottom: 8px;
 }
 /* --- FIN ESTILOS FOOTER Y PRIVACIDAD --- */
+
+
+}
 
