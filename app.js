@@ -1,4 +1,4 @@
-/* app.js final: +Foto Guardia +Comentarios +Opcion Notificar +Historial Cards +COMPRESION + TOAST + RESPALDO + ZXING / BarcodeDetector + QR (Modo "Scan-All") */
+/* app.js final: +Foto Guardia +Comentarios +Opcion Notificar +Historial Cards +COMPRESION + TOAST + RESPALDO + ZXING / BarcodeDetector + QR (Modo "Scan-All") + FIX LOGIN HASH */
 (async function(){
   
   // --- INICIO SETUP DE jspdf ---
@@ -13,7 +13,11 @@
   async function hashText(text){
     const enc = new TextEncoder();
     const data = enc.encode(text);
-    const hash = await crypto.subtle.digest('SHA-26', data);
+    // --- CORRECCIÓN DE LOGIN ---
+    // Estaba como 'SHA-26', lo cual es incorrecto y rompía el login.
+    // El valor correcto es 'SHA-256'.
+    const hash = await crypto.subtle.digest('SHA-256', data); 
+    // --- FIN DE CORRECCIÓN ---
     const hex = [...new Uint8Array(hash)].map(b=>b.toString(16).padStart(2,'0')).join('');
     return hex;
   }
@@ -696,6 +700,7 @@
     
     
     // --- INICIO: LÓGICA DEL ESCÁNER (ZXING / BarcodeDetector) ---
+    // (Versión "Scan-All" con el bug de hash arreglado)
     
     let isScannerActive = false;
     let cameraStream = null; // Para guardar la referencia al stream de la cámara
@@ -964,7 +969,7 @@
         const u = e.target.closest('.row').querySelector('.info strong').textContent;
         itemToDelete = { type: 'usuario', id: id };
         deleteConfirmMsg.textContent = `¿Estás seguro de eliminar al usuario ${u}? Esta acción no se puede deshacer.`;
-        deleteConfirmModal.classList.add('hidden');
+        deleteConfirmModal.classList.remove('hidden');
       }
     });
     refreshUsersBtn.addEventListener('click', refreshUsuarios);
