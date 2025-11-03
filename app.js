@@ -527,7 +527,7 @@
       }
     });
 
-    // --- RECIBIR PAQUETE (MODIFICADO) ---
+    // --- RECIBIR PAQUETE (CON CORRECCIÓN DE FORMATO) ---
     recibirBtn.addEventListener('click', async ()=>{
       clearMessage();
       const guia = guiaEl.value.trim();
@@ -596,10 +596,10 @@
           const saludo = `Estimado residente ${nombreRes} del ${dom || 'N/A'} usted tiene al horario (${contadorPaquetes} paquete(s) en caseta)`;
           const dataLine = `${guia}|${paqueteria}`;
 
-          const msg = `${header}
-${saludo}
-${dataLine}${comentariosInfo}${recibidoPorInfo}
-`;
+          // --- ★★★ INICIO DE LA CORRECCIÓN ★★★ ---
+          // Se quitó el último '\n' que estaba después de {recibidoPorInfo}
+          const msg = `${header}\n${saludo}\n${dataLine}${comentariosInfo}${recibidoPorInfo}`;
+          // --- ★★★ FIN DE LA CORRECCIÓN ★★★ ---
           // --- FIN NUEVO MENSAJE ---
 
           const fotoFile = dataURLtoFile(fotoDataURL, `paquete_${guia}.png`);
@@ -607,13 +607,21 @@ ${dataLine}${comentariosInfo}${recibidoPorInfo}
           const shareData = { title: 'Paquete Recibido', text: msg, files: files };
           
           if (navigator.canShare && navigator.canShare(shareData)) {
-            try { await navigator.share(shareData); notified = true; } 
+            try { 
+              await navigator.share(shareData); 
+              notified = true; 
+            } 
             catch (err) {
-              console.warn("Web Share API (con archivos) falló, volviendo a WA:", err); notified = false; 
+              console.warn("APP: Web Share API (con archivos) falló, volviendo a WA:", err); notified = false; 
               if (err.name !== 'AbortError') { if (domInfo && domInfo.telefono) { const url = `https://wa.me/${domInfo.telefono}?text=${encodeURIComponent(msg)}`; window.open(url, '_blank'); notified = true; } }
             }
           } 
-          else if (domInfo && domInfo.telefono) { console.log("Web Share API no soporta archivos, usando fallback de WA."); const url = `https://wa.me/${domInfo.telefono}?text=${encodeURIComponent(msg)}`; window.open(url, '_blank'); notified = true; }
+          else if (domInfo && domInfo.telefono) { 
+            console.log("APP: Web Share API no soporta archivos, usando fallback de WA."); 
+            const url = `https://wa.me/${domInfo.telefono}?text=${encodeURIComponent(msg)}`; 
+            window.open(url, '_blank'); 
+            notified = true; 
+          }
         } 
         // --- FIN: SECCIÓN DE NOTIFICACIÓN MODIFICADA ---
         
