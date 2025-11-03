@@ -596,7 +596,7 @@
           const saludo = `Estimado residente ${nombreRes} del ${dom || 'N/A'} usted tiene al horario (${contadorPaquetes} paquete(s) en caseta)`;
           const dataLine = `${guia}|${paqueteria}`;
 
-          // --- ★★★ INICIO DE LA CORRECCIÓN ★★★ ---
+          // --- ★★★ CORRECCIÓN (la que hicimos antes) ★★★ ---
           // Se quitó el último '\n' que estaba después de {recibidoPorInfo}
           const msg = `${header}\n${saludo}\n${dataLine}${comentariosInfo}${recibidoPorInfo}`;
           // --- ★★★ FIN DE LA CORRECCIÓN ★★★ ---
@@ -966,7 +966,7 @@
             errorMsg = "No se encontró cámara.";
           }
           // Quitar alerta de HTTPS para que no moleste en local
-          if (location.protocol !== 'https:' && (err.name === 'NotAllowedError' || err.name === 'NotFoundError')) {
+          if (location.protocol !== 'httpss:' && (err.name === 'NotAllowedError' || err.name === 'NotFoundError')) {
              errorMsg = "Pruebe en un servidor HTTPS (GitHub Pages).";
           }
           
